@@ -1,0 +1,46 @@
+{
+  "name": "words",
+  "version": "1.0.0",
+  "description": "A collection of React hooks for toggles with dynamic noun and verb APIs",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "jest --config jest.config.ts"
+  },
+  "keywords": [
+    "react",
+    "hooks",
+    "toggle",
+    "state"
+  ],
+  "author": "Alex Cory",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ava/words.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ava/words/issues"
+  },
+  "homepage": "https://github.com/ava/words#readme",
+  "peerDependencies": {
+    "react": ">=16.9.0"
+  },
+  "devDependencies": {
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/react": "^16.2.0",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/jest": "^27.0.0",
+    "@types/react": "^16.9.0",
+    "jest": "^28.0.0",
+    "jest-environment-jsdom": "^29.7.0",
+    "react-dom": "^19.0.0",
+    "ts-jest": "^28.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^4.0.0"
+  },
+  "files": [
+    "dist"
+  ]
+}
