@@ -23,7 +23,7 @@
   "bugs": {
     "url": "https://github.com/ava/words/issues"
   },
-  "homepage": "https://github.com/ava/words#readme",
+  "homepage": "https://alexcory.notion.site/words",
   "peerDependencies": {
     "react": ">=16.9.0"
   },
