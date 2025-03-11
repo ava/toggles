@@ -1,4 +1,42 @@
+# Node Modules
 node_modules/
-.qodo/
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Build Files
+dist/
+build/
 *.log
+
+# Editor & OS Files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+*.swn
+
+# Dependency & Cache
+.npm/
+.nvmrc
+.pnp/
+.pnp.js
+.cache/
+.next/
+.qodo/
+
+# Environment & Secrets
 .env
+.env.local
+.env.development
+.env.production
+.env.test
+
+# Git Ignore Generated Artifacts
+*.tgz
+*.bak

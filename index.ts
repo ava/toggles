@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo, useReducer, useLayoutEffect } from 'react'
+import { useState, useRef, useMemo, useReducer, useLayoutEffect } from 'react'
 
 type PositiveVerb = keyof typeof toggleVerbs         // e.g. "open" | "show" | ...
 type NegativeVerb = typeof toggleVerbs[PositiveVerb] // e.g. "close" | "hide" | ...
@@ -117,7 +117,6 @@ export function useVerbs(): Verbs {
     for (const positive of positiveVerbs) {
       const negative = toggleVerbs[positive as keyof typeof toggleVerbs]
       v[positive] = (noun: Noun) => {
-        console.log(`useVerbs: ${positive} called on noun ${noun.name}`)
         const setter = (noun as any)[NounSetter]
         if (typeof setter === 'function') {
           setter(true)
@@ -136,7 +135,6 @@ export function useVerbs(): Verbs {
       }
     }
     v.toggle = (noun: Noun) => {
-      console.log(`useVerbs: toggle called on noun ${noun.name} (current state: ${noun.isActive})`)
       const setter = (noun as any)[NounSetter]
       if (typeof setter === 'function') {
         setter(!noun.isActive)
@@ -165,7 +163,6 @@ export function useWords(...initialValues: boolean[]): Words {
     for (const positive of positiveVerbs) {
       const negative = toggleVerbs[positive as keyof typeof toggleVerbs]
       v[positive] = (noun: Noun) => {
-        console.log(`useWords: ${positive} called on noun ${noun.name}`)
         const setter = (noun as any)[NounSetter]
         if (typeof setter === 'function') {
           setter(true)
@@ -175,7 +172,6 @@ export function useWords(...initialValues: boolean[]): Words {
         }
       }
       v[negative] = (noun: Noun) => {
-        console.log(`useWords: ${negative} called on noun ${noun.name}`)
         const setter = (noun as any)[NounSetter]
         if (typeof setter === 'function') {
           setter(false)
@@ -186,7 +182,6 @@ export function useWords(...initialValues: boolean[]): Words {
       }
     }
     v.toggle = (noun: Noun) => {
-      console.log(`useWords: toggle called on noun ${noun.name} (current state: ${noun.isActive})`)
       const setter = (noun as any)[NounSetter]
       if (typeof setter === 'function') {
         setter(!noun.isActive)
