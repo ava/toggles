@@ -91,7 +91,7 @@ export function useNoun(initial: boolean): Noun {
   useLayoutEffect(() => {
     activeRef.current = active
   }, [active])
-  const name = useMemo(() =>  Math.random().toString(36).substr(2, 6), [])
+  const name = useMemo(() => Math.random().toString(36).substr(2, 6), [])
   const nounRef = useRef<Noun>()
   if (!nounRef.current) {
     nounRef.current = createNounFromState(
@@ -146,12 +146,12 @@ export function useVerbs(): Verbs {
   }, [])
 }
 
-type Words = [
+type Toggles = [
   nouns: Record<string, Noun>,
   verbs: Record<string, (noun: Noun) => void>
 ]
 
-export function useWords(...initialValues: boolean[]): Words {
+export function useToggles(...initialValues: boolean[]): Toggles {
   const rerender = useReducer(() => ({}), 0)[1]
   const states = useRef<Record<string, boolean>>({})
   const nounCache = useRef<Record<string, Noun>>({})
@@ -240,4 +240,4 @@ export function useWords(...initialValues: boolean[]): Words {
   return [nouns, verbs]
 }
 
-export default useWords
+export default useToggles

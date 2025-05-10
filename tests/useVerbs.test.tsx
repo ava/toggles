@@ -1,7 +1,7 @@
 import React from 'react'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import {  useNoun, useVerbs, useWords, nounState, positiveVerbs, negativeVerbs } from '..'
+import { useNoun, useVerbs, useToggles, nounState, positiveVerbs, negativeVerbs } from '..'
 
 function TestDynamicVerbs({ initial = false }: { initial?: boolean }) {
   const noun = useNoun(initial)
@@ -114,20 +114,20 @@ describe('useVerbs dynamic tests', () => {
 
 /**
  * Test case 1:
- * Use useWords to get verbs and useNoun to create a noun.
- * Then call a verb from useWords on the noun from useNoun.
+ * Use useToggles to get verbs and useNoun to create a noun.
+ * Then call a verb from useToggles on the noun from useNoun.
  */
 function InteropTest1() {
   const noun = useNoun(false) // starts inactive
-  // Get verbs from useWords (ignore nouns output)
-  const [, verbs] = useWords()  
+  // Get verbs from useToggles (ignore nouns output)
+  const [, verbs] = useToggles()
   return (
     <div>
       <div data-testid="interop1">
         {noun.isActive ? 'Active' : 'Inactive'}
       </div>
       <button data-testid="interop1-toggle" onClick={() => verbs.toggle(noun)}>
-        Toggle via useWords
+        Toggle via useToggles
       </button>
     </div>
   )
@@ -135,11 +135,11 @@ function InteropTest1() {
 
 /**
  * Test case 2:
- * Use useWords to get a noun and useVerbs to get verbs.
- * Then call a verb from useVerbs on the noun from useWords.
+ * Use useToggles to get a noun and useVerbs to get verbs.
+ * Then call a verb from useVerbs on the noun from useToggles.
  */
 function InteropTest2({ initialValues = [false] }: { initialValues?: boolean[] }) {
-  const [nouns] = useWords(...initialValues)
+  const [nouns] = useToggles(...initialValues)
   // Destructure a noun (we use "sidebar" as an example)
   const { sidebar } = nouns
   const { check } = useVerbs()
@@ -155,15 +155,15 @@ function InteropTest2({ initialValues = [false] }: { initialValues?: boolean[] }
   )
 }
 
-describe('Interoperability between useWords, useNoun, and useVerbs', () => {
-  it('updates noun state when using useWords verbs on a noun from useNoun', async () => {
+describe('Interoperability between useToggles, useNoun, and useVerbs', () => {
+  it('updates noun state when using useToggles verbs on a noun from useNoun', async () => {
     render(<InteropTest1 />)
     const stateEl = screen.getByTestId('interop1')
     const toggleBtn = screen.getByTestId('interop1-toggle')
-    
+
     // Initially, the noun is inactive.
     expect(stateEl.textContent).toBe('Inactive')
-    
+
     // Click toggle (should set state to active).
     await act(async () => {
       await userEvent.click(toggleBtn)
@@ -171,7 +171,7 @@ describe('Interoperability between useWords, useNoun, and useVerbs', () => {
     await waitFor(() => {
       expect(stateEl.textContent).toBe('Active')
     })
-    
+
     // Click toggle again (should revert to inactive).
     await act(async () => {
       await userEvent.click(toggleBtn)
@@ -181,14 +181,14 @@ describe('Interoperability between useWords, useNoun, and useVerbs', () => {
     })
   })
 
-  it('updates noun state when using useVerbs verbs on a noun from useWords', async () => {
+  it('updates noun state when using useVerbs verbs on a noun from useToggles', async () => {
     // Start with sidebar initially unchecked (false).
     render(<InteropTest2 initialValues={[false]} />)
     const stateEl = screen.getByTestId('interop2')
     const checkBtn = screen.getByTestId('interop2-check')
-    
+
     expect(stateEl.textContent).toBe('Unchecked')
-    
+
     // Click the "Check" button from useVerbs.
     await act(async () => {
       await userEvent.click(checkBtn)

@@ -1,1 +1,1 @@
-[![Use Words](https://raw.githubusercontent.com/ava/words/main/public/useWords.jpg)](https://alexcory.notion.site/words)
+[![useToggles](https://raw.githubusercontent.com/ava/toggles/main/public/useToggles.jpg)](https://alexcory.notion.site/toggles)

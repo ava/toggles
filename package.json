@@ -1,5 +1,5 @@
 {
-  "name": "words",
+  "name": "toggles",
   "version": "0.3.0",
   "description": "A collection of React hooks for toggles with dynamic noun and verb APIs",
   "main": "dist/index.js",
@@ -27,7 +27,6 @@
     "show-hide",
     "open-close",
     "check-uncheck",
-    "words",
     "use-toggles",
     "use-toggle",
     "toggles",
@@ -39,12 +38,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/ava/words.git"
+    "url": "https://github.com/ava/toggles.git"
   },
   "bugs": {
-    "url": "https://github.com/ava/words/issues"
+    "url": "https://github.com/ava/toggles/issues"
   },
-  "homepage": "https://alexcory.notion.site/words",
+  "homepage": "https://alexcory.notion.site/toggles",
   "peerDependencies": {
     "react": ">=16.9.0"
   },

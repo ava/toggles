@@ -40,3 +40,4 @@ Thumbs.db
 # Git Ignore Generated Artifacts
 *.tgz
 *.bak
+.qodo
