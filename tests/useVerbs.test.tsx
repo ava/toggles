@@ -109,6 +109,18 @@ describe('useVerbs dynamic tests', () => {
       })
     })
   })
+
+  it('ensures all noun state values are booleans after verbs are called', async () => {
+    render(<TestDynamicVerbs initial={false} />)
+    // Click every positive and negative verb
+    for (const verb of [...positiveVerbs, ...negativeVerbs, 'toggle']) {
+      await userEvent.click(screen.getByTestId(`verb-${verb}`))
+      const state = getNounState()
+      Object.keys(state).forEach((key) => {
+        expect(typeof state[key]).toBe('boolean')
+      })
+    }
+  })
 })
 
 
@@ -196,5 +208,38 @@ describe('Interoperability between useToggles, useNoun, and useVerbs', () => {
     await waitFor(() => {
       expect(stateEl.textContent).toBe('Checked')
     })
+  })
+
+  it('ensures noun state properties return boolean values, not objects', async () => {
+    function TestBooleanValues() {
+      const noun = useNoun(false)
+      const verbs = useVerbs()
+
+      React.useEffect(() => {
+        // Initially should be boolean false
+        expect(typeof noun.isActive).toBe('boolean')
+        expect(noun.isActive).toBe(false)
+        expect(typeof noun.isChecked).toBe('boolean')
+        expect(noun.isChecked).toBe(false)
+
+        // After applying a positive verb, should be boolean true
+        verbs.check(noun)
+        expect(typeof noun.isActive).toBe('boolean')
+        expect(noun.isActive).toBe(true)
+        expect(typeof noun.isChecked).toBe('boolean')
+        expect(noun.isChecked).toBe(true)
+
+        // After applying a negative verb, should be boolean false
+        verbs.uncheck(noun)
+        expect(typeof noun.isActive).toBe('boolean')
+        expect(noun.isActive).toBe(false)
+        expect(typeof noun.isChecked).toBe('boolean')
+        expect(noun.isChecked).toBe(false)
+      }, [])
+
+      return <div>Test</div>
+    }
+
+    render(<TestBooleanValues />)
   })
 })
