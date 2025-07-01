@@ -90,14 +90,10 @@ export function useNoun(initial: boolean): Noun {
   const name = useMemo(() => Math.random().toString(36).substr(2, 6), [])
   const nounRef = useRef<Noun>()
   if (!nounRef.current) {
-    nounRef.current = createNounFromState(
-      name,
-      () => activeRef.current,
-      (val: boolean) => {
-        activeRef.current = val
-        setActive(val)
-      }
-    )
+    nounRef.current = createNounFromState(name, () => activeRef.current, (val: boolean) => {
+      activeRef.current = val
+      setActive(val)
+    })
   }
   return nounRef.current
 }
