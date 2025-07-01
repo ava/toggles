@@ -1,7 +1,7 @@
 import { useState, useRef, useMemo, useReducer, useLayoutEffect } from 'react'
 
-type PositiveVerb = keyof typeof toggleVerbs         // e.g. "open" | "show" | ...
-type NegativeVerb = typeof toggleVerbs[PositiveVerb] // e.g. "close" | "hide" | ...
+type PositiveVerb = keyof typeof toggleVerbs
+type NegativeVerb = typeof toggleVerbs[PositiveVerb]
 type AllVerbKeys = PositiveVerb | NegativeVerb | 'toggle'
 
 // toggle verb pairs
@@ -27,7 +27,6 @@ export const positiveVerbs = Object.keys(toggleVerbs) as PositiveVerb[]
 export const negativeVerbs = Object.values(toggleVerbs) as NegativeVerb[]
 
 // noun state mapping object. For any key that maps to true,
-// the getter will return getActive(), and for false it returns !getActive()
 export const nounState: Record<string, boolean> = {
   isActive: true,
   isOpen: true,
@@ -38,6 +37,7 @@ export const nounState: Record<string, boolean> = {
   isOn: true,
   isOff: false,
   isChecked: true,
+  isUnchecked: false,
   isEnabled: true,
   isDisabled: false,
   isExpanded: true,
@@ -98,7 +98,6 @@ export function useNoun(initial: boolean): Noun {
       name,
       () => activeRef.current,
       (val: boolean) => {
-        // Update the ref immediately so that getActive returns the new value
         activeRef.current = val
         setActive(val)
       }
@@ -107,136 +106,83 @@ export function useNoun(initial: boolean): Noun {
   return nounRef.current
 }
 
-export type Verbs = {
-  [K in AllVerbKeys]: (noun: Noun) => void
+export function useActions(
+  fallbackSetter: (noun: Noun, value: boolean) => void
+): Verbs {
+  return useMemo(() => {
+    const setter = (noun: Noun, value: boolean) => {
+      const nounSetter = (noun as any)[NounSetter];
+      if (typeof nounSetter === 'function') {
+        nounSetter(value);
+      } else {
+        fallbackSetter(noun, value);
+      }
+    };
+    const verbs: Record<string, (noun: Noun) => void> = {};
+    for (const positive of positiveVerbs) {
+      const negative = toggleVerbs[positive];
+      verbs[positive] = (noun: Noun) => setter(noun, true);
+      verbs[negative] = (noun: Noun) => setter(noun, false);
+    }
+    verbs.toggle = (noun: Noun) => setter(noun, !noun.isActive);
+    return verbs as Verbs;
+  }, [fallbackSetter]);
 }
 
 export function useVerbs(): Verbs {
-  return useMemo(() => {
-    const v: Record<string, (noun: Noun) => void> = {}
-    for (const positive of positiveVerbs) {
-      const negative = toggleVerbs[positive as keyof typeof toggleVerbs]
-      v[positive] = (noun: Noun) => {
-        const setter = (noun as any)[NounSetter]
-        if (typeof setter === 'function') {
-          setter(true)
-        } else {
-          console.warn(`No setter on noun ${noun.name} for ${positive}`)
-        }
+  return useActions((noun, value) =>
+    console.warn(`No setter on noun ${noun.name} for ${value ? 'positive' : 'negative'} action`)
+  );
+}
+
+export function useToggles(...initialValues: boolean[]): Toggles {
+  const rerender = useReducer(() => ({}), 0)[1];
+  const states = useRef<Record<string, boolean>>({});
+  const nounCache = useRef<Record<string, Noun>>({});
+  const index = useRef(0);
+
+  const verbs = useActions((noun, value) => {
+    states.current[noun.name] = value;
+    rerender();
+  });
+
+  const nouns = useMemo(() => new Proxy({} as Record<string, Noun>, {
+    get(_, prop: string) {
+      if (typeof prop !== 'string') return undefined;
+      if (prop in verbs) {
+        const isProd = process.env.NODE_ENV === 'production';
+        const log = isProd ? console.warn : ((m: string) => { throw new Error(m); });
+        log(`Invalid noun name "${prop}": noun names must not conflict with verb names`);
+        if (!isProd) return undefined;
       }
-      v[negative] = (noun: Noun) => {
-        const setter = (noun as any)[NounSetter]
-        if (typeof setter === 'function') {
-          setter(false)
-        } else {
-          console.warn(`No setter on noun ${noun.name} for ${negative}`)
-        }
-      }
+      if (nounCache.current[prop]) return nounCache.current[prop];
+      states.current[prop] = initialValues[index.current] ?? false;
+      const noun = createNounFromState(prop, () => states.current[prop], (val) => {
+        states.current[prop] = val;
+        rerender();
+      });
+      nounCache.current[prop] = noun;
+      index.current++;
+      return noun;
+    },
+    ownKeys() {
+      return Object.keys(states.current);
+    },
+    getOwnPropertyDescriptor(_, prop: string) {
+      return prop in states.current ? { enumerable: true, configurable: true } : undefined;
     }
-    v.toggle = (noun: Noun) => {
-      const setter = (noun as any)[NounSetter]
-      if (typeof setter === 'function') {
-        setter(!noun.isActive)
-      } else {
-        console.warn(`No setter on noun ${noun.name} for toggle`)
-      }
-    }
-    return v as Verbs
-  }, [])
+  }), [initialValues, rerender]);
+
+  return [nouns, verbs];
 }
 
 type Toggles = [
   nouns: Record<string, Noun>,
-  verbs: Record<string, (noun: Noun) => void>
+  verbs: Verbs
 ]
 
-export function useToggles(...initialValues: boolean[]): Toggles {
-  const rerender = useReducer(() => ({}), 0)[1]
-  const states = useRef<Record<string, boolean>>({})
-  const nounCache = useRef<Record<string, Noun>>({})
-  const index = useRef(0)
-
-  // Updated verbs: try to use the noun's own setter if available.
-  const verbs = useMemo(() => {
-    const v: Record<string, (noun: Noun) => void> = {}
-    for (const positive of positiveVerbs) {
-      const negative = toggleVerbs[positive as keyof typeof toggleVerbs]
-      v[positive] = (noun: Noun) => {
-        const setter = (noun as any)[NounSetter]
-        if (typeof setter === 'function') {
-          setter(true)
-        } else {
-          states.current[noun.name] = true
-          rerender()
-        }
-      }
-      v[negative] = (noun: Noun) => {
-        const setter = (noun as any)[NounSetter]
-        if (typeof setter === 'function') {
-          setter(false)
-        } else {
-          states.current[noun.name] = false
-          rerender()
-        }
-      }
-    }
-    v.toggle = (noun: Noun) => {
-      const setter = (noun as any)[NounSetter]
-      if (typeof setter === 'function') {
-        setter(!noun.isActive)
-      } else {
-        states.current[noun.name] = !states.current[noun.name]
-        rerender()
-      }
-    }
-    return v
-  }, [rerender])
-
-  const nouns = useMemo(
-    () =>
-      new Proxy({} as Record<string, Noun>, {
-        get(_, prop: string) {
-          if (typeof prop !== 'string') return undefined
-          if (prop in verbs) {
-            if (process.env.NODE_ENV !== 'production') {
-              throw new Error(
-                `Invalid noun name "${prop}": noun names must not conflict with verb names`
-              )
-            } else {
-              console.error(
-                `Invalid noun name "${prop}": noun names must not conflict with verb names`
-              )
-              return undefined
-            }
-          }
-          if (nounCache.current[prop]) return nounCache.current[prop]
-          const initial = initialValues[index.current] ?? false
-          states.current[prop] = initial
-          const noun = createNounFromState(
-            prop,
-            () => states.current[prop],
-            (val: boolean) => {
-              states.current[prop] = val
-              rerender()
-            }
-          )
-          nounCache.current[prop] = noun
-          index.current++
-          return noun
-        },
-        ownKeys() {
-          return Object.keys(states.current)
-        },
-        getOwnPropertyDescriptor(_, prop: string) {
-          if (prop in states.current)
-            return { enumerable: true, configurable: true }
-          return undefined
-        }
-      }),
-    [initialValues, rerender]
-  )
-
-  return [nouns, verbs]
+export type Verbs = {
+  [K in AllVerbKeys]: (noun: Noun) => void
 }
 
 export default useToggles
