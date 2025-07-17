@@ -38,15 +38,11 @@ export type Verbs = {
   [K in AllVerbKeys]: (noun: Noun) => void
 }
 
-// Create verbs object once
-const verbsObject: Record<string, (noun: Noun) => void> = {}
-Object.entries(toggleVerbs).forEach(([pos, neg]) => {
-  verbsObject[pos] = (noun: Noun) => setNounValue(noun, true)
-  verbsObject[neg] = (noun: Noun) => setNounValue(noun, false)
-})
-verbsObject.toggle = (noun: Noun) => setNounValue(noun, !noun?.isActive)
-
-export const verbs = verbsObject as Verbs
+export const verbs = Object.entries(toggleVerbs).reduce<Record<string, (noun: Noun) => void>>((acc, [pos, neg]) => {
+  acc[pos] = (noun: Noun) => setNounValue(noun, true)
+  acc[neg] = (noun: Noun) => setNounValue(noun, false)
+  return acc
+}, { toggle: (noun: Noun) => setNounValue(noun, !noun?.isActive) }) as Verbs
 
 export const useVerbs = (): Verbs => verbs
 
