@@ -1,10 +1,10 @@
 import React from 'react'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { useNoun, useVerbs, useToggles, nounState, positiveVerbs, negativeVerbs } from '..'
+import { useToggle, useVerbs, useToggles, nounState, positiveVerbs, negativeVerbs, verbs } from '../index'
 
 function TestDynamicVerbs({ initial = false }: { initial?: boolean }) {
-  const noun = useNoun(initial)
+  const noun = useToggle(initial)
   const verbs = useVerbs()
 
   // Render all derived state as JSON for assertions.
@@ -126,11 +126,11 @@ describe('useVerbs dynamic tests', () => {
 
 /**
  * Test case 1:
- * Use useToggles to get verbs and useNoun to create a noun.
- * Then call a verb from useToggles on the noun from useNoun.
+ * Use useToggles to get verbs and useToggle to create a noun.
+ * Then call a verb from useToggles on the noun from useToggle.
  */
 function InteropTest1() {
-  const noun = useNoun(false) // starts inactive
+  const noun = useToggle(false) // starts inactive
   // Get verbs from useToggles (ignore nouns output)
   const [, verbs] = useToggles()
   return (
@@ -167,8 +167,8 @@ function InteropTest2({ initialValues = [false] }: { initialValues?: boolean[] }
   )
 }
 
-describe('Interoperability between useToggles, useNoun, and useVerbs', () => {
-  it('updates noun state when using useToggles verbs on a noun from useNoun', async () => {
+describe('Interoperability between useToggles, useToggle, and useVerbs', () => {
+  it('updates noun state when using useToggles verbs on a noun from useToggle', async () => {
     render(<InteropTest1 />)
     const stateEl = screen.getByTestId('interop1')
     const toggleBtn = screen.getByTestId('interop1-toggle')
@@ -212,7 +212,7 @@ describe('Interoperability between useToggles, useNoun, and useVerbs', () => {
 
   it('ensures noun state properties return boolean values, not objects', async () => {
     function TestBooleanValues() {
-      const noun = useNoun(false)
+      const noun = useToggle(false)
       const verbs = useVerbs()
 
       React.useEffect(() => {
@@ -241,5 +241,38 @@ describe('Interoperability between useToggles, useNoun, and useVerbs', () => {
     }
 
     render(<TestBooleanValues />)
+  })
+
+  it('allows importing verbs directly without using the hook', async () => {
+    function TestDirectVerbsImport() {
+      const noun = useToggle(false)
+      const [mounted, setMounted] = React.useState(false)
+
+      React.useEffect(() => {
+        // Test that imported verbs work the same as hook verbs
+        expect(noun.isActive).toBe(false)
+
+        // Use imported verbs directly
+        verbs.open(noun)
+        expect(noun.isActive).toBe(true)
+        expect(noun.isOpen).toBe(true)
+
+        verbs.close(noun)
+        expect(noun.isActive).toBe(false)
+        expect(noun.isOpen).toBe(false)
+
+        verbs.toggle(noun)
+        expect(noun.isActive).toBe(true)
+
+        setMounted(true)
+      }, [])
+
+      return <div data-testid="mounted">{mounted ? 'Mounted' : 'Not mounted'}</div>
+    }
+
+    render(<TestDirectVerbsImport />)
+    await waitFor(() => {
+      expect(screen.getByTestId('mounted').textContent).toBe('Mounted')
+    })
   })
 })
