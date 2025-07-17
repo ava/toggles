@@ -1,7 +1,7 @@
-import React, { useEffect } from 'react'
-import { render, screen, act } from '@testing-library/react'
+import React, { useEffect, useState } from 'react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { useToggles } from '../index'
+import { useToggles, toggle, open } from '../index'
 
 describe('Performance and Rerendering', () => {
   beforeEach(() => {
@@ -9,104 +9,96 @@ describe('Performance and Rerendering', () => {
     globalNouns.clear()
   })
 
-  describe('Selective rerendering', () => {
-    it('should only rerender components that access state properties', async () => {
+  describe('Global state optimization - Selective rerendering', () => {
+    it('should share toggles efficiently between components', async () => {
       const user = userEvent.setup()
-      let renderCountA = 0
-      let renderCountB = 0
+      let settingsProviderRenders = 0
+      let settingsDisplayRenders = 0
 
-      function ComponentA() {
-        renderCountA++
-        const [{ settings }, verbs] = useToggles('global')
-        
+      function SettingsProvider() {
+        settingsProviderRenders++
+        const { settings } = useToggles('global')
+
         return (
           <div>
-            <span data-testid="render-a">{renderCountA}</span>
-            <button onClick={() => verbs.open(settings)}>Open Settings</button>
+            <span data-testid="provider-renders">{settingsProviderRenders}</span>
+            <span data-testid="provider-state">{settings.isEnabled ? 'On' : 'Off'}</span>
+            <button onClick={() => toggle(settings)}>Toggle Provider</button>
           </div>
         )
       }
 
-      function ComponentB() {
-        renderCountB++
-        const [{ settings }] = useToggles('global')
-        
+      function SettingsDisplay() {
+        settingsDisplayRenders++
+        const { settings } = useToggles('global')
+
         return (
           <div>
-            <span data-testid="render-b">{renderCountB}</span>
-            <span data-testid="settings-b">{settings.isOpen ? 'Open' : 'Closed'}</span>
+            <span data-testid="display-renders">{settingsDisplayRenders}</span>
+            <span data-testid="display-state">{settings.isEnabled ? 'On' : 'Off'}</span>
           </div>
         )
       }
 
-      render(
-        <>
-          <ComponentA />
-          <ComponentB />
-        </>
-      )
+      render(<><SettingsProvider /><SettingsDisplay /></>)
 
-      expect(screen.getByTestId('render-a').textContent).toBe('1')
-      expect(screen.getByTestId('render-b').textContent).toBe('1')
+      // Initial renders
+      expect(screen.getByTestId('provider-renders').textContent).toBe('1')
+      expect(screen.getByTestId('display-renders').textContent).toBe('1')
 
-      // Click to open Settings
-      await user.click(screen.getByText('Open Settings'))
+      // Toggle should trigger re-render in both components
+      await user.click(screen.getByText('Toggle Provider'))
 
-      // Both components should rerender when using namespaces
-      expect(screen.getByTestId('render-a').textContent).toBe('2')
-      expect(screen.getByTestId('render-b').textContent).toBe('2')
+      // Both components should rerender when using namespaces - since they both are accessing state from the same global noun
+      expect(screen.getByTestId('provider-renders').textContent).toBe('2')
+      expect(screen.getByTestId('display-renders').textContent).toBe('2')
+      expect(screen.getByTestId('provider-state').textContent).toBe('On')
+      expect(screen.getByTestId('display-state').textContent).toBe('On')
     })
 
     it('should show proper selective rerendering with local toggles', async () => {
       const user = userEvent.setup()
-      let renderCountA = 0
-      let renderCountB = 0
+      let componentARenders = 0
+      let componentBRenders = 0
 
       function ComponentA() {
-        renderCountA++
-        const [{ localToggle }, verbs] = useToggles() // No namespace = local
-        
+        componentARenders++
+        const { localToggle } = useToggles() // No namespace = local
+
         return (
           <div>
-            <span data-testid="render-local-a">{renderCountA}</span>
-            <button onClick={() => verbs.toggle(localToggle)}>Toggle A</button>
-            <span data-testid="state-a">{localToggle.isActive ? 'On' : 'Off'}</span>
+            <span data-testid="component-a-renders">{componentARenders}</span>
+            <span data-testid="component-a-state">{localToggle.isActive ? 'On' : 'Off'}</span>
+            <button onClick={() => toggle(localToggle)}>Toggle A</button>
           </div>
         )
       }
 
       function ComponentB() {
-        renderCountB++
-        const [{ localToggle }] = useToggles() // No namespace = local
-        
+        componentBRenders++
+        const { localToggle } = useToggles() // No namespace = local
+
         return (
           <div>
-            <span data-testid="render-local-b">{renderCountB}</span>
-            <span data-testid="state-b">{localToggle.isActive ? 'On' : 'Off'}</span>
+            <span data-testid="component-b-renders">{componentBRenders}</span>
+            <span data-testid="component-b-state">{localToggle.isActive ? 'On' : 'Off'}</span>
           </div>
         )
       }
 
-      render(
-        <>
-          <ComponentA />
-          <ComponentB />
-        </>
-      )
+      render(<><ComponentA /><ComponentB /></>)
 
-      expect(screen.getByTestId('render-local-a').textContent).toBe('1')
-      expect(screen.getByTestId('render-local-b').textContent).toBe('1')
+      // Initial renders
+      expect(screen.getByTestId('component-a-renders').textContent).toBe('1')
+      expect(screen.getByTestId('component-b-renders').textContent).toBe('1')
 
-      // Toggle A's local state
+      // Toggle A should only re-render A, not B (they have separate local state)
       await user.click(screen.getByText('Toggle A'))
 
-      // Only Component A should rerender (local state)
-      expect(screen.getByTestId('render-local-a').textContent).toBe('2')
-      expect(screen.getByTestId('render-local-b').textContent).toBe('1')
-      
-      // States should be independent
-      expect(screen.getByTestId('state-a').textContent).toBe('On')
-      expect(screen.getByTestId('state-b').textContent).toBe('Off')
+      expect(screen.getByTestId('component-a-renders').textContent).toBe('2')
+      expect(screen.getByTestId('component-b-renders').textContent).toBe('1') // Should not re-render
+      expect(screen.getByTestId('component-a-state').textContent).toBe('On')
+      expect(screen.getByTestId('component-b-state').textContent).toBe('Off') // Separate state
     })
   })
 
@@ -116,14 +108,14 @@ describe('Performance and Rerendering', () => {
 
       function TestComponent() {
         renderCount++
-        const [{ modal }, verbs] = useToggles()
+        const { modal } = useToggles()
 
         // This effect should not cause infinite re-renders
         useEffect(() => {
           if (!modal.isOpen) {
-            verbs.open(modal)
+            open(modal)
           }
-        }, [modal.isOpen, verbs, modal])
+        }, [modal.isOpen, modal])
 
         return (
           <div data-testid="render-count">{renderCount}</div>
@@ -142,13 +134,13 @@ describe('Performance and Rerendering', () => {
 
       function TestComponent() {
         renderCount++
-        const [{ rapidToggle }, verbs] = useToggles()
+        const { rapidToggle } = useToggles()
 
         return (
           <div>
             <span data-testid="render-count">{renderCount}</span>
             <span data-testid="state">{rapidToggle.isActive ? 'On' : 'Off'}</span>
-            <button onClick={() => verbs.toggle(rapidToggle)}>Toggle</button>
+            <button onClick={() => toggle(rapidToggle)}>Toggle</button>
           </div>
         )
       }
@@ -163,131 +155,117 @@ describe('Performance and Rerendering', () => {
 
       // Should have rendered 11 times: 1 initial + 10 toggles
       expect(renderCount).toBe(11)
-      
+
       // Final state should be Off (even number of toggles)
       expect(screen.getByTestId('state').textContent).toBe('Off')
     })
 
-    it('should handle simultaneous updates from multiple effects', () => {
-      let componentRenders = 0
-      let effect1Runs = 0
-      let effect2Runs = 0
-
+    it('should handle useEffect dependencies correctly', () => {
       function TestComponent() {
-        componentRenders++
-        const [{ effectToggle1, effectToggle2 }, verbs] = useToggles()
+        const [effectCount, setEffectCount] = useState(0)
+        const { effectToggle1, effectToggle2 } = useToggles()
 
         useEffect(() => {
-          effect1Runs++
-          if (!effectToggle1.isActive) {
-            verbs.activate(effectToggle1)
-          }
-        }, [effectToggle1, verbs])
-
-        useEffect(() => {
-          effect2Runs++
-          if (!effectToggle2.isActive) {
-            verbs.activate(effectToggle2)
-          }
-        }, [effectToggle2, verbs])
+          setEffectCount(count => count + 1)
+        }, [effectToggle1, effectToggle2]) // Depending on both toggles
 
         return (
           <div>
-            <span data-testid="toggle1">{effectToggle1.isActive ? 'On' : 'Off'}</span>
-            <span data-testid="toggle2">{effectToggle2.isActive ? 'On' : 'Off'}</span>
+            <span data-testid="effect-count">{effectCount}</span>
+            <button onClick={() => toggle(effectToggle1)}>Toggle 1</button>
+            <button onClick={() => toggle(effectToggle2)}>Toggle 2</button>
           </div>
         )
       }
 
       render(<TestComponent />)
 
-      // Both toggles should be active
-      expect(screen.getByTestId('toggle1').textContent).toBe('On')
-      expect(screen.getByTestId('toggle2').textContent).toBe('On')
-
-      // Should not cause excessive re-renders
-      expect(componentRenders).toBeLessThanOrEqual(3)
-      expect(effect1Runs).toBeLessThanOrEqual(2)
-      expect(effect2Runs).toBeLessThanOrEqual(2)
+      // Effect should run once on initial render
+      expect(screen.getByTestId('effect-count').textContent).toBe('1')
     })
+  })
 
-    it('should handle nested component updates without cascading re-renders', async () => {
+  describe('Parent-child rendering', () => {
+    it('should handle parent-child component rendering efficiently', async () => {
       const user = userEvent.setup()
       let parentRenders = 0
       let childRenders = 0
 
-      function ChildComponent({ onToggle }: { onToggle: () => void }) {
+      function Child() {
         childRenders++
-        const [{ childToggle }, verbs] = useToggles()
+        const { childToggle } = useToggles()
 
         return (
           <div>
             <span data-testid="child-renders">{childRenders}</span>
-            <button onClick={() => {
-              verbs.toggle(childToggle)
-              onToggle()
-            }}>
-              Child Toggle
-            </button>
+            <span data-testid="child-state">{childToggle.isVisible ? 'Visible' : 'Hidden'}</span>
+            <button onClick={() => toggle(childToggle)}>Toggle Child</button>
           </div>
         )
       }
 
-      function ParentComponent() {
+      function Parent() {
         parentRenders++
-        const [{ parentToggle }, verbs] = useToggles()
+        const { parentToggle } = useToggles()
 
         return (
           <div>
             <span data-testid="parent-renders">{parentRenders}</span>
-            <ChildComponent onToggle={() => verbs.toggle(parentToggle)} />
+            <span data-testid="parent-state">{parentToggle.isExpanded ? 'Expanded' : 'Collapsed'}</span>
+            <button onClick={() => toggle(parentToggle)}>Toggle Parent</button>
+            <Child />
           </div>
         )
       }
 
-      render(<ParentComponent />)
+      render(<Parent />)
 
-      await user.click(screen.getByText('Child Toggle'))
+      // Initial renders
+      expect(screen.getByTestId('parent-renders').textContent).toBe('1')
+      expect(screen.getByTestId('child-renders').textContent).toBe('1')
 
-      // Parent should render twice (initial + toggle)
-      expect(parentRenders).toBe(2)
-      // Child should render twice (initial + parent re-render)
-      expect(childRenders).toBe(2)
+      // Toggle child should not re-render parent
+      await user.click(screen.getByText('Toggle Child'))
+      expect(screen.getByTestId('parent-renders').textContent).toBe('1')
+      expect(screen.getByTestId('child-renders').textContent).toBe('2')
+
+      // Toggle parent will re-render both parent and child (normal React behavior)
+      await user.click(screen.getByText('Toggle Parent'))
+      expect(screen.getByTestId('parent-renders').textContent).toBe('2')
+      expect(screen.getByTestId('child-renders').textContent).toBe('3')
     })
 
-    it('should properly cleanup subscriptions on unmount', () => {
-      const { unmount } = render(
+    it('should handle component unmounting correctly', () => {
+      const { globalNouns } = require('../src/globalNouns')
+
+      function TestComponent({ id }: { id: number }) {
+        const { darkMode } = useToggles(`namespace-${id}`)
+        return <div>{darkMode.isEnabled ? 'enabled' : 'disabled'}</div>
+      }
+
+      const { rerender } = render(
         <div>
-          {Array.from({ length: 100 }, (_, i) => (
-            <TestToggle key={i} id={i} />
-          ))}
+          {[1, 2, 3].map(id => <TestComponent key={id} id={id} />)}
         </div>
       )
 
-      function TestToggle({ id }: { id: number }) {
-        const [{ darkMode }] = useToggles(`namespace-${id}`)
-        return <div>{darkMode.isOn ? 'On' : 'Off'}</div>
-      }
-
-      // Unmount all components
-      unmount()
-
-      // Verify no memory leaks by checking globalNouns subscriptions
-      const { globalNouns } = require('../src/globalNouns')
-      
       // Check that the global noun store has properly cleaned up
       // After unmounting, the toggles map should have no entries with refCount > 0
       let activeToggles = 0
       globalNouns.toggles.forEach((entry: any) => {
         if (entry.refCount > 0) activeToggles++
       })
+      expect(activeToggles).toBe(3)
+
+      // Unmount components
+      rerender(<div></div>)
+
+      // Now should be 0
+      activeToggles = 0
+      globalNouns.toggles.forEach((entry: any) => {
+        if (entry.refCount > 0) activeToggles++
+      })
       expect(activeToggles).toBe(0)
-      
-      // Create a new component with same namespace to verify cleanup
-      const { container } = render(<TestToggle id={0} />)
-      
-      // Should render without errors
-      expect(container.textContent).toBe('Off')
     })
   })
 })

@@ -12,12 +12,10 @@ export const nounState: Record<string, boolean> = Object.fromEntries([
 export const NounSetter = Symbol.for('NounSetter')
 
 export type Noun = { [K in keyof typeof nounState]: boolean }
+type Getter = () => boolean
+type Setter = (active: boolean) => void
 
-export function createNounFromState(
-  name: string,
-  getActive: () => boolean,
-  setActive: (active: boolean) => void
-): Noun {
+export function createNounFromState(name: string, getActive: Getter, setActive: Setter): Noun {
   return new Proxy({}, {
     get(_, prop: PropertyKey) {
       if (prop === NounSetter) return setActive

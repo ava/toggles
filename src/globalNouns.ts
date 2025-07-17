@@ -1,4 +1,4 @@
-import { Noun, createNounFromState } from './utils'
+import { Noun, createNounFromState } from './nouns'
 
 interface GlobalToggleEntry {
   noun: Noun

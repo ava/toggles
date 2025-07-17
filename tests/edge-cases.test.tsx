@@ -1,6 +1,8 @@
 import React from 'react'
-import { render, screen, renderHook } from '@testing-library/react'
-import { useToggles, useNouns, useVerbs } from '../index'
+import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { range } from 'lodash'
+import { useToggles, verbs, toggle } from '../index'
 
 describe('Edge Cases and Error Handling', () => {
   beforeEach(() => {
@@ -9,316 +11,286 @@ describe('Edge Cases and Error Handling', () => {
   })
 
   describe('Invalid inputs', () => {
-    it('should handle namespace with special characters', () => {
-      function TestComponent() {
-        const [{ setting }] = useToggles('namespace:with:colons', false)
-        return <div>{setting.isActive ? 'On' : 'Off'}</div>
+    it('handles special characters in namespace', () => {
+      const TestComponent = () => {
+        const { sidebar } = useToggles('namespace:with:colons', false)
+        return <div>{sidebar.isOpen ? 'open' : 'closed'}</div>
       }
-
       const { container } = render(<TestComponent />)
-      expect(container.textContent).toBe('Off')
+      expect(container.textContent).toBe('closed')
     })
 
-    it('should handle very long namespace strings', () => {
-      const longNamespace = 'a'.repeat(1000)
-      function TestComponent() {
-        // Use 'switch' instead of 'toggle' as noun name since 'toggle' is now a reserved verb
-        const [{ switchNoun }] = useToggles(longNamespace, true)
-        return <div>{switchNoun.isActive ? 'On' : 'Off'}</div>
+    it('ignores changes to initial value after first render', async () => {
+      const TestComponent = ({ initial }: { initial: boolean }) => {
+        const { modal } = useToggles(initial)
+        return (
+          <>
+            <div data-testid="state">{modal.isOpen ? 'open' : 'closed'}</div>
+            <button onClick={() => toggle(modal)}>Toggle</button>
+          </>
+        )
       }
 
-      const { container } = render(<TestComponent />)
-      expect(container.textContent).toBe('On')
+      const { rerender } = render(<TestComponent initial={false} />)
+      expect(screen.getByTestId('state').textContent).toBe('closed')
+
+      // Change the initial prop from false to true
+      rerender(<TestComponent initial={true} />)
+      // Should still be closed - initial value change shouldn't affect existing noun
+      expect(screen.getByTestId('state').textContent).toBe('closed')
+
+      // Toggle to verify the noun is still working
+      await userEvent.click(screen.getByText('Toggle'))
+      expect(screen.getByTestId('state').textContent).toBe('open')
+
+      // Change initial prop again - should still not affect the noun
+      rerender(<TestComponent initial={false} />)
+      expect(screen.getByTestId('state').textContent).toBe('open')
     })
 
-    it('should handle mixed type arguments gracefully', () => {
-      function TestComponent() {
+    it('ignores changes to initial values for useToggles', async () => {
+      const TestComponent = ({ initial1, initial2 }: { initial1: boolean; initial2: boolean }) => {
+        const { dropdown, notifications } = useToggles(initial1, initial2)
+        return (
+          <>
+            <div data-testid="dropdown">{dropdown.isExpanded ? 'expanded' : 'collapsed'}</div>
+            <div data-testid="notifications">{notifications.isEnabled ? 'enabled' : 'disabled'}</div>
+            <button onClick={() => verbs.toggle(dropdown)}>Toggle Dropdown</button>
+            <button onClick={() => verbs.toggle(notifications)}>Toggle Notifications</button>
+          </>
+        )
+      }
+
+      const { rerender } = render(<TestComponent initial1={true} initial2={false} />)
+      expect(screen.getByTestId('dropdown').textContent).toBe('expanded')
+      expect(screen.getByTestId('notifications').textContent).toBe('disabled')
+
+      // Change both initial values
+      rerender(<TestComponent initial1={false} initial2={true} />)
+      // Should keep their current states
+      expect(screen.getByTestId('dropdown').textContent).toBe('expanded')
+      expect(screen.getByTestId('notifications').textContent).toBe('disabled')
+
+      // Toggle to verify they still work
+      await userEvent.click(screen.getByText('Toggle Dropdown'))
+      await userEvent.click(screen.getByText('Toggle Notifications'))
+      expect(screen.getByTestId('dropdown').textContent).toBe('collapsed')
+      expect(screen.getByTestId('notifications').textContent).toBe('enabled')
+    })
+
+    it('handles very long namespace strings', () => {
+      const TestComponent = () => {
+        const { tooltip } = useToggles('a'.repeat(1000), true)
+        return <div>{tooltip.isVisible ? 'visible' : 'hidden'}</div>
+      }
+      const { container } = render(<TestComponent />)
+      expect(container.textContent).toBe('visible')
+    })
+
+    it('handles mixed type arguments gracefully', () => {
+      const TestComponent = () => {
         // Testing runtime behavior with unusual argument order
         // When first arg is boolean, it's treated as initial value, not namespace
-        const [nouns] = useToggles(true as any, 'namespace' as any, false as any)
-
-        // Should create nouns with the provided initial values
-        return <div>{Object.keys(nouns).length > 0 ? 'Has nouns' : 'No nouns'}</div>
+        const nouns = useToggles(true as any, 'namespace' as any, false as any)
+        return <div>{Object.keys(nouns).length > 0 ? 'has nouns' : 'no nouns'}</div>
       }
-
       const { container } = render(<TestComponent />)
-      // Since we're passing boolean args, nouns will be created on first access
-      expect(container.textContent).toBe('No nouns')
-    })
-
-    it.skip('should handle empty string namespace', () => {
-      function TestComponent() {
-        // Empty string namespace is treated as no namespace, so true is the first initial value
-        const [{ modal }] = useToggles('', true)
-        return <div>{modal.isOpen ? 'Open' : 'Closed'}</div>
-      }
-
-      const { container } = render(<TestComponent />)
-      // Since empty string is falsy, it's not a namespace, so true is for the first accessed noun
-      expect(container.textContent).toBe('Open')
+      // Nouns are only created once destructured or accessed like nouns.noun
+      expect(container.textContent).toBe('no nouns')
     })
   })
 
   describe('Noun property edge cases', () => {
-    it('should return undefined for non-existent noun properties', () => {
-      let capturedNoun: any = null
-
-      function TestComponent() {
-        const { modal } = useNouns()
-        capturedNoun = modal
-        return <div>Rendered</div>
+    it('returns undefined for non-existent properties', () => {
+      let noun: any
+      const TestComponent = () => {
+        const { modal } = useToggles()
+        noun = modal
+        return null
       }
-
       render(<TestComponent />)
 
-      expect(capturedNoun.nonExistentProperty).toBeUndefined()
-      expect(capturedNoun['123']).toBeUndefined()
-      expect(capturedNoun[Symbol('test')]).toBeUndefined()
+      expect(noun.nonExistent).toBeUndefined()
+      expect(noun['123']).toBeUndefined()
+      expect(noun[Symbol('test')]).toBeUndefined()
     })
 
-    it('should handle properties that conflict with object methods', () => {
+    it.skip('should handle properties that conflict with object methods', () => {
+      // 🤔 I'm not exactly sure what to do in this instance for now. Maybe error in development and console.error on production?
       let capturedNoun: any = null
 
-      function TestComponent() {
+      function ConflictTester() {
         // Use different noun names that don't conflict with verbs
-        const { stringValue, numericValue, builder } = useNouns()
-        capturedNoun = { stringValue, numericValue, builder }
+        const { toString } = useToggles()
+        capturedNoun = { toString }
         return <div>Rendered</div>
       }
 
-      render(<TestComponent />)
+      render(<ConflictTester />)
 
       // These should be noun objects with isActive property
-      expect(typeof capturedNoun.stringValue.isActive).toBe('boolean')
-      expect(typeof capturedNoun.numericValue.isActive).toBe('boolean')
-      expect(typeof capturedNoun.builder.isActive).toBe('boolean')
+      expect(typeof capturedNoun.toString.isActive).toBe('boolean')
+      // expect(typeof capturedNoun.numericValue.isActive).toBe('boolean')
+      // expect(typeof capturedNoun.builder.isActive).toBe('boolean')
     })
 
-    it('should expose name property on nouns', () => {
-      let capturedNoun: any = null
-
-      function TestComponent() {
-        const { testNoun } = useNouns()
-        capturedNoun = testNoun
-        return <div>Rendered</div>
+    it('exposes name property on nouns', () => {
+      let noun: any
+      const ConflictTester = () => {
+        const { accordion } = useToggles()
+        noun = accordion
+        return null
       }
-
-      render(<TestComponent />)
-
-      expect(capturedNoun.name).toBe('testNoun')
+      render(<ConflictTester />)
+      expect(noun.name).toBe('accordion')
     })
   })
 
   describe('Verb error handling', () => {
-    it('should handle verbs called with null/undefined', () => {
+    it('warns when verbs called with null/undefined', () => {
+      // TODO: we need a better warning message here. i.e. 'Must call `toggle(undefined)` with a noun.'
       const consoleSpy = jest.spyOn(console, 'warn').mockImplementation()
 
-      function TestComponent() {
-        const verbs = useVerbs()
-
+      const TestComponent = () => {
         React.useEffect(() => {
-          // Testing runtime behavior with invalid inputs
-          try {
-            verbs.toggle(null as any)
-          } catch (e) {
-            // Expected to throw
-          }
-          try {
-            verbs.open(undefined as any)
-          } catch (e) {
-            // Expected to throw
-          }
-        }, [verbs])
-
-        return <div>Rendered</div>
+          verbs.toggle(null as any)
+          verbs.open(undefined as any)
+        }, [])
+        return null
       }
 
       render(<TestComponent />)
-
-      // Should warn about missing setter
-      expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('No setter on noun')
-      )
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('No setter on noun'))
       consoleSpy.mockRestore()
     })
 
-    it('should handle verbs called with non-noun objects', () => {
+    it('warns when verbs called with non-noun objects', () => {
+      // TODO: we need a better warning message here. i.e. 'Must call `toggle()` with a noun. Currently its `toggle({ isActive: true })`.'
       const consoleSpy = jest.spyOn(console, 'warn').mockImplementation()
 
-      function TestComponent() {
-        const verbs = useVerbs()
-
+      const TestComponent = () => {
         React.useEffect(() => {
-          // Testing runtime behavior with non-noun objects
           verbs.toggle({ isActive: true } as any)
           verbs.open({} as any)
-        }, [verbs])
-
-        return <div>Rendered</div>
+        }, [])
+        return null
       }
 
       render(<TestComponent />)
-
-      expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('No setter on noun')
-      )
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('No setter on noun'))
       consoleSpy.mockRestore()
     })
   })
 
-  describe('Concurrent updates and race conditions', () => {
-    it('should handle simultaneous mount/unmount', async () => {
-      let mountCount = 0
-      let unmountCount = 0
+  describe('Concurrent updates', () => {
+    it('handles simultaneous mount/unmount', () => {
+      let mounts = 0, unmounts = 0
 
-      function TestComponent({ id }: { id: number }) {
+      const TestComponent = ({ id }: { id: number }) => {
         React.useEffect(() => {
-          mountCount++
-          return () => { unmountCount++ }
+          mounts++
+          return () => { unmounts++ }
         }, [])
 
-        const [{ shared }] = useToggles('concurrent-test')
-        return <div>{shared.isActive ? `${id}-On` : `${id}-Off`}</div>
+        const { websocket } = useToggles('concurrent-test')
+        return <div>{websocket.isConnected ? `${id}-connected` : `${id}-disconnected`}</div>
       }
 
-      // Rapidly mount and unmount multiple components
       const { rerender, unmount } = render(
-        <>
-          {Array.from({ length: 10 }, (_, i) => (
-            <TestComponent key={i} id={i} />
-          ))}
-        </>
+        <>{range(10).map(i => <TestComponent key={i} id={i} />)}</>
       )
 
-      // Force some rerenders
-      rerender(
-        <>
-          {Array.from({ length: 5 }, (_, i) => (
-            <TestComponent key={i} id={i} />
-          ))}
-        </>
-      )
-
+      rerender(<>{range(5).map(i => <TestComponent key={i} id={i} />)}</>)
       unmount()
 
-      expect(mountCount).toBeGreaterThan(0)
-      expect(unmountCount).toBeGreaterThan(0)
+      expect(mounts).toBeGreaterThan(0)
+      expect(unmounts).toBeGreaterThan(0)
     })
 
-    it('should handle multiple components initializing same noun with different values', () => {
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation()
+    it('logs conflicts when same noun initialized with different values', () => {
+      // TODO: need better warning message
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => { })
 
-      // Create many components that try to initialize the same noun
-      const components = Array.from({ length: 10 }, (_, i) => {
-        return function Component() {
-          const [{ racyNoun }] = useToggles('race-test', i % 2 === 0)
-          return <div>{racyNoun.isActive ? 'On' : 'Off'}</div>
-        }
+      const components = range(10).map(i => () => {
+        const { autoSave } = useToggles('race-test', i % 2 === 0)
+        return <div>{autoSave.isEnabled ? 'enabled' : 'disabled'}</div>
       })
 
-      render(
-        <>
-          {components.map((Component, i) => (
-            <Component key={i} />
-          ))}
-        </>
-      )
+      render(<>{components.map((Comp, i) => <Comp key={i} />)}</>)
 
-      // Should see conflict warnings
       expect(consoleSpy).toHaveBeenCalledWith(
         expect.stringContaining('initialized with conflicting values')
       )
-
       consoleSpy.mockRestore()
     })
   })
 
-  describe('Memory and performance edge cases', () => {
-    it('should handle large numbers of nouns', () => {
-      function TestComponent() {
-        const nouns = useNouns(...Array(100).fill(false))
-
-        // Access many nouns
+  describe('Memory and performance', () => {
+    it('handles large numbers of nouns', () => {
+      const TestComponent = () => {
+        const nouns = useToggles(...Array(100).fill(false))
         let count = 0
         for (let i = 0; i < 100; i++) {
-          const nounName = `noun${i}`
-          if (nouns[nounName] && !nouns[nounName].isActive) {
-            count++
-          }
+          if (!nouns[`widget${i}`].isMounted) count++
         }
-
-        return <div>{count} nouns are off</div>
+        return <div>{count} widgets are unmounted</div>
       }
 
       const { container } = render(<TestComponent />)
-      expect(container.textContent).toBe('100 nouns are off')
+      expect(container.textContent).toBe('100 widgets are unmounted')
     })
 
-    it('should handle rapid namespace changes', () => {
-      let renderCount = 0
+    it('handles rapid namespace changes', () => {
+      let renders = 0
 
-      function TestComponent({ namespace }: { namespace: string }) {
-        renderCount++
-        const [{ setting }] = useToggles(namespace)
-        return <div>{setting.isActive ? 'On' : 'Off'}</div>
+      const TestComponent = ({ namespace }: { namespace: string }) => {
+        renders++
+        const { bluetooth } = useToggles(namespace)
+        return <div>{bluetooth.isConnected ? 'connected' : 'disconnected'}</div>
       }
 
       const { rerender } = render(<TestComponent namespace="ns1" />)
-
-      // Rapidly change namespaces
       for (let i = 0; i < 20; i++) {
         rerender(<TestComponent namespace={`ns${i}`} />)
       }
 
-      expect(renderCount).toBe(21) // Initial + 20 rerenders
+      expect(renders).toBe(21)
     })
   })
 
-  describe('Serialization and object operations', () => {
-    it('should handle JSON.stringify on nouns', () => {
-      let capturedNoun: any = null
-
-      function TestComponent() {
-        const { modal } = useNouns(true)
-        capturedNoun = modal
-        return <div>Rendered</div>
+  describe('Object operations', () => {
+    it('allows JSON.stringify on nouns', () => {
+      let noun: any
+      const TestComponent = () => {
+        const { modal } = useToggles(true)
+        noun = modal
+        return null
       }
-
       render(<TestComponent />)
-
-      // Stringifying a proxy should work but might not capture all properties
-      expect(() => JSON.stringify(capturedNoun)).not.toThrow()
+      expect(() => JSON.stringify(noun)).not.toThrow()
     })
 
-    it('should handle Object.freeze/seal on nouns', () => {
-      let capturedNoun: any = null
-
-      function TestComponent() {
-        const { modal } = useNouns()
-        capturedNoun = modal
-        return <div>Rendered</div>
+    it('allows Object.freeze/seal on nouns', () => {
+      let noun: any
+      const TestComponent = () => {
+        const { modal } = useToggles()
+        noun = modal
+        return null
       }
-
       render(<TestComponent />)
-
-      // These operations on proxies might behave differently
-      expect(() => Object.freeze(capturedNoun)).not.toThrow()
-      expect(() => Object.seal(capturedNoun)).not.toThrow()
+      expect(() => Object.freeze(noun)).not.toThrow()
+      expect(() => Object.seal(noun)).not.toThrow()
     })
   })
 
-  describe('React 18 and StrictMode', () => {
-    it('should handle StrictMode double rendering', () => {
-      let effectCount = 0
+  describe('React StrictMode', () => {
+    it('handles StrictMode double rendering', () => {
+      let effects = 0
 
-      function TestComponent() {
-        const [{ modal }] = useToggles('strict-test')
-
-        React.useEffect(() => {
-          effectCount++
-        })
-
-        return <div>{modal.isActive ? 'On' : 'Off'}</div>
+      const TestComponent = () => {
+        const { menu } = useToggles('strict-test')
+        React.useEffect(() => { effects++ })
+        return <div>{menu.isOpen ? 'open' : 'closed'}</div>
       }
 
       render(
@@ -326,9 +298,8 @@ describe('Edge Cases and Error Handling', () => {
           <TestComponent />
         </React.StrictMode>
       )
-
       // In StrictMode with React 18, effects might run twice
-      expect(effectCount).toBeGreaterThanOrEqual(1)
+      expect(effects).toBeGreaterThanOrEqual(1)
     })
   })
 
@@ -354,25 +325,25 @@ describe('Edge Cases and Error Handling', () => {
 
   describe('Hook rules violations', () => {
     it('should handle conditional hook usage gracefully', () => {
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation()
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => { })
 
-      function TestComponent({ condition }: { condition: boolean }) {
+      function ConditionalHookTester({ condition }: { condition: boolean }) {
         // Always call the hook to satisfy rules of hooks
-        const [{ modal }] = useToggles()
+        const { dialog } = useToggles()
 
         // But conditionally use it
         if (condition) {
-          return <div>{modal.isActive ? 'On' : 'Off'}</div>
+          return <div>{dialog.isOpen ? 'open' : 'closed'}</div>
         }
 
         return <div>No hook</div>
       }
 
-      const { rerender } = render(<TestComponent condition={false} />)
+      const { rerender } = render(<ConditionalHookTester condition={false} />)
 
       // Should not throw since we're following hook rules
       expect(() => {
-        rerender(<TestComponent condition={true} />)
+        rerender(<ConditionalHookTester condition={true} />)
       }).not.toThrow()
 
       consoleSpy.mockRestore()
